@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="300">
+    <title>Carnival Ops - Red Cross</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #121212; color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { background: #b91d1d; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #7f1d1d; }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .board { flex: 4; display: flex; flex-direction: column; gap: 10px; padding: 15px; overflow-y: auto; }
+        .sidebar { flex: 1; background: #1e1e1e; border-left: 2px solid #333; padding: 15px; overflow-y: auto; min-width: 250px; }
+        .lane { border-radius: 8px; padding: 12px; min-height: 100px; border: 1px solid #333; margin-bottom: 8px; }
+        .lane-green { border-left: 8px solid #28a745; background: rgba(40,167,69,0.05); }
+        .lane-yellow { border-left: 8px solid #ffc107; background: rgba(255,193,7,0.05); }
+        .lane-red { border-left: 8px solid #dc3545; background: rgba(220,53,69,0.05); }
+        .lane-purple { border-left: 8px solid #6f42c1; background: rgba(111,66,193,0.05); }
+        .team-badge { display: inline-block; padding: 15px; margin: 5px; background: #2a2a2a; border: 1px solid #444; border-radius: 8px; cursor: pointer; text-align: center; min-width: 130px; vertical-align: top; position: relative; transition: 0.2s; user-select: none; }
+        .team-badge:hover { border-color: #888; background: #333; }
+        .leader-name { display: block; font-size: 0.85em; color: #ffc107; margin-top: 5px; font-weight: bold; }
+        .badge-red { border-color: #dc3545; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(220,53,69,0.4); } 70% { box-shadow: 0 0 0 10px rgba(220,53,69,0); } 100% { box-shadow: 0 0 0 0 rgba(220,53,69,0); } }
+        .timer-container { position: absolute; bottom: 5px; right: 8px; font-family: monospace; font-size: 0.75em; color: #aaa; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; }
+        #context-menu { display: none; position: absolute; background: #333; color: white; border: 1px solid #555; border-radius: 5px; z-index: 2000; width: 190px; box-shadow: 0 4px 15px rgba(0,0,0,0.7); }
+        #context-menu div { padding: 12px 15px; cursor: pointer; font-size: 0.9em; border-bottom: 1px solid #444; }
+        #context-menu div:hover { background: #b91d1d; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d2d2d; padding: 25px; border-radius: 12px; z-index: 1000; width: 400px; border: 1px solid #555; max-height: 85vh; overflow-y: auto; }
+        .backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; }
+        input, textarea { width: 100%; margin-bottom: 10px; background: #444; border: 1px solid #666; color: white; padding: 10px; border-radius: 4px; box-sizing: border-box; }
+        .btn-group button { width: 100%; margin-bottom: 6px; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+        .save-btn { background: #007bff; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        #extra-fields { display: none; border-top: 1px solid #444; padding-top: 15px; }
+        .info-label { color: #888; font-size: 0.85em; margin-bottom: 2px; }
+        .info-value { margin-bottom: 12px; border-bottom: 1px solid #3d3d3d; padding-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 style="margin:0;">🔴 CARNIVAL OPS</h2>
+    <button onclick="openAddModal()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">+ ΝΕΑ ΟΜΑΔΑ</button>
+</header>
+
+<div class="main-container">
+    <div class="board">
+        {% for code, name in main_statuses %}
+        <div class="lane lane-{{ code|lower }}">
+            <h4 style="margin:0 0 8px 0; color:#aaa; font-size: 0.8em; text-transform: uppercase;">{{ name }}</h4>
+            {% for team in active_teams %}
+                {% if team.status == code %}
+                <div class="team-badge badge-{{ code|lower }}" 
+                     data-id="{{ team.id }}" 
+                     data-updated="{{ team.updated_at|date:'c' }}"
+                     data-callsign="{{ team.call_sign }}" 
+                     data-leader="{{ team.leader_full_name }}" 
+                     data-phone="{{ team.leader_phone }}" 
+                     data-members="{{ team.members_list }}"
+                     data-location="{{ team.location|default:'' }}"
+                     data-incident="{{ team.incident_report|default:'' }}"
+                     onclick="openUpdateModal('{{ team.id }}')">
+                    
+                    <div style="font-weight: bold; font-size: 1.3em;">{{ team.call_sign }}</div>
+                    <span class="leader-name">{{ team.leader_full_name }}</span>
+                    {% if team.location %}<div style="font-size:0.7em; color:#bbb; margin-top:3px;">📍 {{ team.location }}</div>{% endif %}
+                    {% if team.status == 'GREEN' or team.status == 'RED' %}
+                    <div class="timer-container">00:00</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="sidebar">
+        <h3 style="text-align:center; color: #888; font-size: 0.9em; border-bottom: 1px solid #333; padding-bottom:10px;">STANDBY</h3>
+        {% for team in standby_teams %}
+        <div class="team-badge" style="width: 85%; border-style: dashed; opacity: 0.8;" 
+             data-id="{{ team.id }}" 
+             data-updated="{{ team.updated_at|date:'c' }}"
+             data-callsign="{{ team.call_sign }}" 
+             data-leader="{{ team.leader_full_name }}" 
+             data-phone="{{ team.leader_phone }}" 
+             data-members="{{ team.members_list }}"
+             data-location=""
+             data-incident=""
+             onclick="openUpdateModal('{{ team.id }}')">
+            <strong>{{ team.call_sign }}</strong>
+            <span class="leader-name">{{ team.leader_full_name }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="context-menu">
+    <div onclick="triggerInfo()">ℹ️ Πληροφορίες Ομάδας</div>
+    <div onclick="triggerEdit()">✏️ Επεξεργασία Στοιχείων</div>
+    <div onclick="triggerDelete()" style="color: #ff8080;">🗑️ Διαγραφή Ομάδας</div>
+</div>
+
+<div id="backdrop" class="backdrop" onclick="closeAllModals()"></div>
+
+<div id="infoModal" class="modal">
+    <h2 id="info-title" style="margin-top:0; color: #ffc107;">Στοιχεία Ομάδας</h2>
+    <div class="info-label">Υπεύθυνος:</div>
+    <div id="info-leader" class="info-value"></div>
+    <div class="info-label">Τηλέφωνο:</div>
+    <div id="info-phone" class="info-value"></div>
+    <div class="info-label">Σύνθεση:</div>
+    <div id="info-members" class="info-value" style="font-size: 0.9em; color: #bbb;"></div>
+    <div id="info-mission-section">
+        <hr style="border:0; border-top: 1px solid #444; margin: 15px 0;">
+        <div class="info-label">Τοποθεσία:</div>
+        <div id="info-location" class="info-value"></div>
+        <div id="info-incident-div">
+            <div class="info-label">Περιστατικό:</div>
+            <div id="info-incident" class="info-value" style="color: #ff8080;"></div>
+        </div>
+    </div>
+    <button onclick="closeAllModals()" class="save-btn" style="background:#444;">ΚΛΕΙΣΙΜΟ</button>
+</div>
+
+<div id="addModal" class="modal">
+    <h3 id="add-modal-title">Διαχείριση Ομάδας</h3>
+    <form id="addForm" method="POST">
+        {% csrf_token %}
+        <input type="text" name="call_sign" placeholder="Κωδικός" required>
+        <input type="text" name="leader_name" placeholder="Υπεύθυνος">
+        <input type="text" name="leader_phone" placeholder="Τηλέφωνο">
+        <div id="members-container"></div>
+        <button type="button" onclick="addMemberField()" style="background:none; color:#aaa; border:1px dashed #555; width:100%; padding:5px; cursor:pointer; margin-bottom:10px;">+ Μέλος</button>
+        <button type="submit" class="save-btn" style="background:#28a745;">ΑΠΟΘΗΚΕΥΣΗ</button>
+    </form>
+</div>
+
+<div id="updateModal" class="modal">
+    <h2 id="m-title" style="margin-top:0;">Ανάθεση</h2>
+    <div class="btn-group">
+        <button type="button" onclick="selectStatus('GREEN')" style="background:#28a745;">ΕΛΕΥΘΕΡΗ</button>
+        <button type="button" onclick="selectStatus('YELLOW')" style="background:#ffc107;">ΠΕΡΙΠΟΛΙΑ</button>
+        <button type="button" onclick="selectStatus('RED')" style="background:#dc3545;">ΠΕΡΙΣΤΑΤΙΚΟ</button>
+        <button type="button" onclick="selectStatus('PURPLE')" style="background:#6f42c1;">ΣΤΑΘΕΡΟ ΣΗΜΕΙΟ</button>
+        <button type="button" onclick="selectStatus('OFF')" style="background:#555;">STANDBY</button>
+    </div>
+    <form id="updateForm" method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="status" id="m-status-input">
+        <div id="extra-fields">
+            <input type="text" name="location" id="m-loc-input" placeholder="Τοποθεσία">
+            <div id="div-incident"><textarea name="incident_report" id="m-incident-input" placeholder="Αναφορά..." rows="3"></textarea></div>
+            <button type="submit" class="save-btn">ΕΝΗΜΕΡΩΣΗ</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    let currentId = null;
+
+    // Timer logic
+    function updateTimers() {
+        const now = new Date();
+        document.querySelectorAll('.team-badge[data-updated]').forEach(badge => {
+            const timer = badge.querySelector('.timer-container');
+            if (!timer) return;
+            const diff = Math.floor((now - new Date(badge.dataset.updated)) / 1000);
+            if (diff < 0) return;
+            const mins = Math.floor(diff / 60);
+            const secs = diff % 60;
+            timer.innerText = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+        });
+    }
+    setInterval(updateTimers, 1000);
+
+    // Get team data from badge element (safer than onclick params)
+    function getBadgeData(id) {
+        const b = document.querySelector(`.team-badge[data-id="${id}"]`);
+        if(!b) return null;
+        return {
+            id: b.dataset.id,
+            callsign: b.dataset.callsign,
+            leader: b.dataset.leader,
+            phone: b.dataset.phone,
+            members: b.dataset.members,
+            location: b.dataset.location,
+            incident: b.dataset.incident,
+            isFree: b.classList.contains('badge-green') || b.closest('.sidebar')
+        };
+    }
+
+    // Context Menu
+    document.addEventListener('contextmenu', e => {
+        const badge = e.target.closest('.team-badge');
+        if (badge) {
+            e.preventDefault();
+            currentId = badge.dataset.id;
+            const menu = document.getElementById('context-menu');
+            menu.style.display = 'block'; menu.style.left = e.pageX + 'px'; menu.style.top = e.pageY + 'px';
+        } else document.getElementById('context-menu').style.display = 'none';
+    });
+    document.addEventListener('click', () => document.getElementById('context-menu').style.display = 'none');
+
+    // Modals
+    function openUpdateModal(id) {
+        currentId = id;
+        const data = getBadgeData(id);
+        document.getElementById('updateModal').style.display='block';
+        document.getElementById('backdrop').style.display='block';
+        document.getElementById('m-title').innerText = 'Ομάδα ' + data.callsign;
+        document.getElementById('m-loc-input').value = data.location;
+        document.getElementById('m-incident-input').value = data.incident;
+        document.getElementById('updateForm').action = '/update/' + id + '/';
+        document.getElementById('extra-fields').style.display = 'none';
+    }
+
+    function triggerInfo() {
+        const data = getBadgeData(currentId);
+        document.getElementById('infoModal').style.display = 'block';
+        document.getElementById('backdrop').style.display = 'block';
+        document.getElementById('info-title').innerText = 'Πληροφορίες ' + data.callsign;
+        document.getElementById('info-leader').innerText = data.leader || '---';
+        document.getElementById('info-phone').innerText = data.phone || '---';
+        document.getElementById('info-members').innerText = data.members || 'Μόνο ο αρχηγός';
+        
+        const mission = document.getElementById('info-mission-section');
+        if (data.isFree) mission.style.display = 'none';
+        else {
+            mission.style.display = 'block';
+            document.getElementById('info-location').innerText = data.location || '---';
+            const inc = document.getElementById('info-incident-div');
+            if (data.incident) { inc.style.display = 'block'; document.getElementById('info-incident').innerText = data.incident; }
+            else inc.style.display = 'none';
+        }
+    }
+
+    function triggerEdit() {
+        const data = getBadgeData(currentId);
+        const f = document.getElementById('addForm');
+        document.getElementById('addModal').style.display='block';
+        document.getElementById('backdrop').style.display='block';
+        document.getElementById('add-modal-title').innerText = 'Επεξεργασία ' + data.callsign;
+        f.action = '/edit-details/' + data.id + '/';
+        f.querySelector('[name="call_sign"]').value = data.callsign;
+        f.querySelector('[name="leader_name"]').value = data.leader;
+        f.querySelector('[name="leader_phone"]').value = data.phone;
+        const container = document.getElementById('members-container');
+        container.innerHTML = '';
+        if(data.members) {
+            data.members.split(', ').forEach(m => {
+                const i = document.createElement('input'); i.type = 'text'; i.name = 'members[]'; i.value = m; container.appendChild(i);
+            });
+        }
+    }
+
+    function triggerDelete() {
+        const data = getBadgeData(currentId);
+        if (confirm('Διαγραφή ' + data.callsign + ';')) {
+            const f = document.createElement('form'); f.method = 'POST'; f.action = '/delete/' + data.id + '/';
+            const c = document.createElement('input'); c.type = 'hidden'; c.name = 'csrfmiddlewaretoken'; c.value = '{{ csrf_token }}';
+            f.appendChild(c); document.body.appendChild(f); f.submit();
+        }
+    }
+
+    function selectStatus(s) {
+        document.getElementById('m-status-input').value = s;
+        if (s === 'GREEN' || s === 'OFF') document.getElementById('updateForm').submit();
+        else { document.getElementById('extra-fields').style.display = 'block'; document.getElementById('div-incident').style.display = (s === 'RED' ? 'block' : 'none'); }
+    }
+
+    function addMemberField() {
+        const c = document.getElementById('members-container');
+        const i = document.createElement('input'); i.type = 'text'; i.name = 'members[]';
+        i.placeholder = 'Μέλος ' + (c.children.length + 1); c.appendChild(i);
+    }
+
+    function openAddModal() {
+        const f = document.getElementById('addForm');
+        f.reset();
+        f.action = "{% url 'add_team' %}";
+        document.getElementById('add-modal-title').innerText = 'Νέα Ομάδα';
+        document.getElementById('members-container').innerHTML = '<input type="text" name="members[]" placeholder="Μέλος 1">';
+        document.getElementById('addModal').style.display='block';
+        document.getElementById('backdrop').style.display='block';
+    }
+
+    function closeAllModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); document.getElementById('backdrop').style.display='none'; }
+</script>
+</body>
+</html>
